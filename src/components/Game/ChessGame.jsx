@@ -1,15 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { RotateCcw } from 'lucide-react';
 
 export default function ChessGame() {
-    // 1. Logic: Use a ref for the game instance to preserve history (PGN)
-    const game = useRef(new Chess());
-
-    // 2. State: Visual state for the board and UI
-    const [fen, setFen] = useState(game.current.fen());
-    const [pgn, setPgn] = useState('');
+    // Logic: Use useState instead of useRef to ensure UI updates on every change
+    const [game, setGame] = useState(new Chess());
     const [optionSquares, setOptionSquares] = useState({});
     const [boardWidth, setBoardWidth] = useState(500);
 
@@ -26,93 +22,67 @@ export default function ChessGame() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Helper: Make a move in the game instance and update all state
-    function safeGameMutate(modify) {
-        setOptionSquares({}); // Clear highlights on move
-        modify(game.current);
-        setFen(game.current.fen());
-        setPgn(game.current.pgn());
-    }
+    // Core Move Logic from User's "Correct Version"
+    function makeAMove(move) {
+        const gameCopy = new Chess(game.fen());
 
-    function onMouseOverSquare(square) {
-        // Get limits for this square
-        const moves = game.current.moves({
-            square: square,
-            verbose: true
-        });
-
-        if (moves.length === 0) return;
-
-        const newSquares = {};
-        moves.map((move) => {
-            newSquares[move.to] = {
-                background:
-                    game.current.get(move.to) && game.current.get(move.to).color !== game.current.get(square).color
-                        ? 'radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)'
-                        : 'radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)',
-                borderRadius: '50%'
-            };
-            return move;
-        });
-
-        newSquares[square] = {
-            background: 'rgba(255, 255, 0, 0.4)'
-        };
-
-        setOptionSquares(newSquares);
-    }
-
-    function onMouseOutSquare() {
-        setOptionSquares({});
-    }
-
-    function makeRandomMove() {
-        const possibleMoves = game.current.moves();
-        if (game.current.isGameOver() || possibleMoves.length === 0) return;
-
-        const randomIndex = Math.floor(Math.random() * possibleMoves.length);
-        safeGameMutate((game) => {
-            game.move(possibleMoves[randomIndex]);
-        });
+        try {
+            const result = gameCopy.move(move);
+            if (result) {
+                setGame(gameCopy);
+                // Clear highlights
+                setOptionSquares({});
+                return result;
+            }
+        } catch (error) {
+            return null;
+        }
+        return null;
     }
 
     function onDrop(sourceSquare, targetSquare) {
-        let move = null;
-        safeGameMutate((game) => {
-            try {
-                move = game.move({
-                    from: sourceSquare,
-                    to: targetSquare,
-                    promotion: 'q'
-                });
-            } catch (error) {
-                // Invalid move
-            }
+        const move = makeAMove({
+            from: sourceSquare,
+            to: targetSquare,
+            promotion: 'q' // always promote to queen for simplicity
         });
 
         if (move === null) return false;
 
-        setTimeout(makeRandomMove, 200);
+        // Computer Response (Simple Random)
+        setTimeout(() => {
+            // Updated pattern to ensure we use latest state and don't overwrite if game changed
+            setGame((currentGameState) => {
+                const computerGameCopy = new Chess(currentGameState.fen());
+                const computerMoves = computerGameCopy.moves();
+
+                if (!computerGameCopy.isGameOver() && computerMoves.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * computerMoves.length);
+                    computerGameCopy.move(computerMoves[randomIndex]);
+                    return computerGameCopy;
+                }
+                return currentGameState;
+            });
+        }, 300);
+
         return true;
     }
 
-    function resetGame() {
-        game.current.reset();
-        setFen(game.current.fen());
-        setPgn('');
-        setOptionSquares({});
-    }
-
-    // Status helpers
-    const currentTurn = game.current.turn() === 'w' ? 'White' : 'Black';
-    const isCheckmate = game.current.isCheckmate();
-    const isDraw = game.current.isDraw();
-    const isCheck = game.current.isCheck();
+    // Status helpers using the 'game' state object directly
+    const currentTurn = game.turn() === 'w' ? 'White' : 'Black';
+    const isCheckmate = game.isCheckmate();
+    const isDraw = game.isDraw();
+    const isCheck = game.isCheck();
 
     let status = `${currentTurn} to move`;
     if (isCheckmate) status = `Game over, ${currentTurn} is in checkmate.`;
     else if (isDraw) status = 'Game over, drawn position.';
     else if (isCheck) status = `${currentTurn} to move (Check!)`;
+
+    function resetGame() {
+        setGame(new Chess());
+        setOptionSquares({});
+    }
 
     return (
         <div className="flex flex-col xl:flex-row gap-8 items-start justify-center w-full max-w-7xl mx-auto px-4 py-8">
@@ -131,16 +101,14 @@ export default function ChessGame() {
                 >
                     <Chessboard
                         id="BasicBoard"
-                        position={fen}
+                        position={game.fen()}
                         onPieceDrop={onDrop}
-                        onMouseOverSquare={onMouseOverSquare}
-                        onMouseOutSquare={onMouseOutSquare}
                         boardWidth={boardWidth}
                         customDarkSquareStyle={{ backgroundColor: '#1e293b' }}
                         customLightSquareStyle={{ backgroundColor: '#334155' }}
                         customSquareStyles={optionSquares}
                         animationDuration={200}
-                        arePiecesDraggable={!game.current.isGameOver()}
+                        arePiecesDraggable={!game.isGameOver()}
                     />
                 </div>
             </div>
@@ -179,7 +147,7 @@ export default function ChessGame() {
                     <div className="bg-black/40 p-4 rounded-lg border border-white/5">
                         <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">FEN</p>
                         <div className="font-mono text-xs text-gray-400 break-all leading-relaxed select-all">
-                            {fen}
+                            {game.fen()}
                         </div>
                     </div>
 
@@ -187,7 +155,7 @@ export default function ChessGame() {
                     <div className="bg-black/40 p-4 rounded-lg border border-white/5 flex flex-col h-48">
                         <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">Move History</p>
                         <div className="flex-1 overflow-y-auto font-mono text-sm text-gray-300 leading-relaxed pr-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                            {pgn || <span className="text-gray-600 italic">No moves yet.</span>}
+                            {game.pgn() || <span className="text-gray-600 italic">No moves yet.</span>}
                         </div>
                     </div>
 
