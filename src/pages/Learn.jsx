@@ -101,14 +101,18 @@ const Learn = () => {
             title: "The Pin",
             level: "Intermediate",
             description: "Restrict an enemy piece from moving.",
-            steps: []
+            steps: [
+                { title: "Absolute Pin", text: "The pinned piece cannot move because it would expose the King.", fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/2N5/PPPP1PPP/R1BQKBNR b KQkq - 1 2", caption: "The Knight on f6 is pinned by the Bishop." },
+                { title: "Relative Pin", text: "The pinned piece can move, but it would lose material.", fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/2N5/PPPP1PPP/R1BQKBNR b KQkq - 1 2", caption: "Moving the Knight exposes the Queen." }
+            ]
         },
         {
             id: 3,
             title: "King Opposition",
             level: "Advanced",
             description: "Master the endgame with King placement.",
-            locked: true
+            locked: true,
+            steps: []
         }
     ];
 

@@ -33,7 +33,11 @@ const Tournaments = () => {
 
                         <div className="text-right flex flex-col items-end gap-2 min-w-[150px]">
                             <span className="text-yellow-500 font-bold text-lg">{t.prize}</span>
-                            <Button variant={t.time === "Live Now" ? "primary" : "secondary"} className="w-full">
+                            <Button
+                                variant={t.time === "Live Now" ? "primary" : "secondary"}
+                                className="w-full"
+                                onClick={() => alert(`Registered for ${t.name}!`)}
+                            >
                                 {t.time === "Live Now" ? "Join Arena" : "Register"}
                             </Button>
                         </div>
