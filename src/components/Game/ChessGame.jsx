@@ -1,12 +1,14 @@
+```javascript
 import React, { useState, useEffect, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { RotateCcw } from 'lucide-react';
+import Engine from './Engine';
 
-export default function ChessGame() {
+export default function ChessGame({ difficulty = "Easy" }) {
     // USE REF: Keeps the game instance stable across renders.
-    // This mimics a Class Component's "this.game" behavior.
     const game = useRef(new Chess());
+    const engine = useRef(new Engine());
 
     // VISUAL STATE: Triggers re-renders when the board changes.
     const [fen, setFen] = useState(game.current.fen());
@@ -26,6 +28,45 @@ export default function ChessGame() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // Setup Engine Response Handler
+    useEffect(() => {
+        // Define difficulty map
+        const levels = {
+            "Easy": { depth: 2 },
+            "Medium": { depth: 8 },
+            "Hard": { depth: 15 },
+            "Grandmaster": { depth: 20 }
+        };
+
+        const currentLevel = levels[difficulty] || levels["Easy"];
+
+        engine.current.onMessage = (message) => {
+            // Parse "bestmove e2e4"
+            if (message && message.startsWith("bestmove")) {
+                const parts = message.split(" ");
+                const moveStr = parts[1]; // "e2e4" or "e7e8q"
+                
+                if (moveStr) {
+                    const from = moveStr.substring(0, 2);
+                    const to = moveStr.substring(2, 4);
+                    const promotion = moveStr.length > 4 ? moveStr.substring(4, 5) : undefined;
+
+                    game.current.move({ from, to, promotion: promotion || 'q' });
+                    safeSetFen();
+                }
+            }
+        };
+
+        return () => {
+             // cleanup if needed (though Engine instance persists)
+        };
+    }, [difficulty]);
+
+    // Reset game when difficulty changes
+    useEffect(() => {
+        resetGame();
+    }, [difficulty]);
+
     // Force Update Helper
     const safeSetFen = () => {
         setFen(game.current.fen());
@@ -35,39 +76,54 @@ export default function ChessGame() {
     useEffect(() => {
         if (game.current.isGameOver() || game.current.turn() === 'w') return;
 
+        // Define difficulty map again for the "go" command
+        const levels = {
+            "Easy": { depth: 2 },
+            "Medium": { depth: 8 },
+            "Hard": { depth: 15 },
+            "Grandmaster": { depth: 20 }
+        };
+        const currentLevel = levels[difficulty] || levels["Easy"];
+        
+        // Short delay for "thinking" visualization
         const timeoutId = setTimeout(() => {
-            const possibleMoves = game.current.moves();
-            if (possibleMoves.length > 0) {
-                const randomIndex = Math.floor(Math.random() * possibleMoves.length);
-                game.current.move(possibleMoves[randomIndex]);
-                safeSetFen(); // Update UI
-            }
+            engine.current.evaluatePosition(game.current.fen(), currentLevel.depth);
         }, 500);
 
         return () => clearTimeout(timeoutId);
-    }, [fen]); // Run whenever FEN changes (after user move)
+    }, [fen, difficulty]); 
 
     function onDrop(sourceSquare, targetSquare) {
         try {
+            console.log(`Attempting move: ${ sourceSquare } -> ${ targetSquare } `);
+            
             const move = game.current.move({
                 from: sourceSquare,
                 to: targetSquare,
-                promotion: 'q',
+                promotion: 'q', 
             });
 
-            if (move === null) return false;
+            if (move === null) {
+                return false;
+            }
 
             safeSetFen(); // Update UI
             return true;
         } catch (error) {
+            console.error("Move Error:", error);
             return false;
         }
     }
 
     function resetGame() {
-        game.current.reset();
-        safeSetFen();
-        setOptionSquares({});
+        try {
+            game.current.reset();
+            safeSetFen();
+            setOptionSquares({});
+            engine.current.stop(); // Stop any thinking
+        } catch (error) {
+            console.error("Reset Error:", error);
+        }
     }
 
     // derived state for UI
@@ -76,10 +132,10 @@ export default function ChessGame() {
     const isDraw = game.current.isDraw();
     const isCheck = game.current.isCheck();
 
-    let status = `${currentTurn} to move`;
-    if (isCheckmate) status = `Game over, ${currentTurn} is in checkmate.`;
+    let status = `${ currentTurn } to move`;
+    if (isCheckmate) status = `Game over, ${ currentTurn } is in checkmate.`;
     else if (isDraw) status = 'Game over, drawn position.';
-    else if (isCheck) status = `${currentTurn} to move (Check!)`;
+    else if (isCheck) status = `${ currentTurn } to move(Check!)`;
 
     return (
         <div className="flex flex-col xl:flex-row gap-8 items-start justify-center w-full max-w-7xl mx-auto px-4 py-8">
@@ -135,7 +191,7 @@ export default function ChessGame() {
                     <div className="bg-black/40 p-4 rounded-lg border border-white/5">
                         <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Status</p>
                         <div className="text-lg font-bold text-white flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${isCheckmate || isCheck ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
+                            <div className={`w - 3 h - 3 rounded - full ${ isCheckmate || isCheck ? 'bg-red-500' : 'bg-emerald-500' } `}></div>
                             {status}
                         </div>
                     </div>
@@ -164,11 +220,11 @@ export default function ChessGame() {
                         }}
                     >
                         <p className="text-sm font-medium text-neon-green">
-                            Play against Computer
+                            Current Difficulty: {difficulty}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
-                            • Computer randomly responds<br />
-                            • Highlights show valid moves
+                            • Opponent: Stockfish 16 (Local)<br />
+                            • Depth: {difficulty === "Easy" ? 2 : difficulty === "Medium" ? 8 : difficulty === "Hard" ? 15 : 20}
                         </p>
                     </div>
                 </div>
