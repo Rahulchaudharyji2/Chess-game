@@ -1,4 +1,3 @@
-```javascript
 import React, { useState, useEffect, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
@@ -45,7 +44,7 @@ export default function ChessGame({ difficulty = "Easy" }) {
             if (message && message.startsWith("bestmove")) {
                 const parts = message.split(" ");
                 const moveStr = parts[1]; // "e2e4" or "e7e8q"
-                
+
                 if (moveStr) {
                     const from = moveStr.substring(0, 2);
                     const to = moveStr.substring(2, 4);
@@ -58,7 +57,7 @@ export default function ChessGame({ difficulty = "Easy" }) {
         };
 
         return () => {
-             // cleanup if needed (though Engine instance persists)
+            // cleanup if needed (though Engine instance persists)
         };
     }, [difficulty]);
 
@@ -84,23 +83,23 @@ export default function ChessGame({ difficulty = "Easy" }) {
             "Grandmaster": { depth: 20 }
         };
         const currentLevel = levels[difficulty] || levels["Easy"];
-        
+
         // Short delay for "thinking" visualization
         const timeoutId = setTimeout(() => {
             engine.current.evaluatePosition(game.current.fen(), currentLevel.depth);
         }, 500);
 
         return () => clearTimeout(timeoutId);
-    }, [fen, difficulty]); 
+    }, [fen, difficulty]);
 
     function onDrop(sourceSquare, targetSquare) {
         try {
-            console.log(`Attempting move: ${ sourceSquare } -> ${ targetSquare } `);
-            
+            console.log(`Attempting move: ${sourceSquare} -> ${targetSquare}`);
+
             const move = game.current.move({
                 from: sourceSquare,
                 to: targetSquare,
-                promotion: 'q', 
+                promotion: 'q',
             });
 
             if (move === null) {
@@ -132,10 +131,10 @@ export default function ChessGame({ difficulty = "Easy" }) {
     const isDraw = game.current.isDraw();
     const isCheck = game.current.isCheck();
 
-    let status = `${ currentTurn } to move`;
-    if (isCheckmate) status = `Game over, ${ currentTurn } is in checkmate.`;
+    let status = `${currentTurn} to move`;
+    if (isCheckmate) status = `Game over, ${currentTurn} is in checkmate.`;
     else if (isDraw) status = 'Game over, drawn position.';
-    else if (isCheck) status = `${ currentTurn } to move(Check!)`;
+    else if (isCheck) status = `${currentTurn} to move (Check!)`;
 
     return (
         <div className="flex flex-col xl:flex-row gap-8 items-start justify-center w-full max-w-7xl mx-auto px-4 py-8">
@@ -191,7 +190,7 @@ export default function ChessGame({ difficulty = "Easy" }) {
                     <div className="bg-black/40 p-4 rounded-lg border border-white/5">
                         <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Status</p>
                         <div className="text-lg font-bold text-white flex items-center gap-2">
-                            <div className={`w - 3 h - 3 rounded - full ${ isCheckmate || isCheck ? 'bg-red-500' : 'bg-emerald-500' } `}></div>
+                            <div className={`w-3 h-3 rounded-full ${isCheckmate || isCheck ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
                             {status}
                         </div>
                     </div>
