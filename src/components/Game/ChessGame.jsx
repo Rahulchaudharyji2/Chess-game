@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { RotateCcw } from 'lucide-react';
 
 export default function ChessGame() {
-    // Logic: Use useState instead of useRef to ensure UI updates on every change
     const [game, setGame] = useState(new Chess());
     const [optionSquares, setOptionSquares] = useState({});
     const [boardWidth, setBoardWidth] = useState(500);
 
+    // Resize handler
     useEffect(() => {
         function handleResize() {
             const width = window.innerWidth;
@@ -16,64 +16,67 @@ export default function ChessGame() {
             else if (width < 1024) setBoardWidth(400);
             else setBoardWidth(560);
         }
-
         handleResize();
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Core Move Logic from User's "Correct Version"
-    // Core Move Logic from User's "Correct Version"
-    function makeAMove(move) {
-        try {
-            const gameCopy = new Chess();
-            gameCopy.loadPgn(game.pgn()); // Preserve history
+    // Safe Mutation Helper
+    const safeGameMutate = (modify) => {
+        setGame((g) => {
+            const update = new Chess();
+            update.loadPgn(g.pgn());
+            modify(update);
+            return update;
+        });
+    };
 
-            const result = gameCopy.move(move);
-            if (result) {
-                setGame(gameCopy);
-                // Clear highlights
-                setOptionSquares({});
-                return result;
-            }
-        } catch (error) {
-            console.error(error); // Debugging
-            return null;
+    // Computer Move Logic - Separated for safety
+    useEffect(() => {
+        let timeoutId;
+        if (game.turn() === 'b' && !game.isGameOver()) {
+            timeoutId = setTimeout(() => {
+                const possibleMoves = game.moves();
+                if (possibleMoves.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * possibleMoves.length);
+                    safeGameMutate((g) => {
+                        g.move(possibleMoves[randomIndex]);
+                    });
+                }
+            }, 500); // 500ms delay for natural feel
         }
-        return null;
-    }
+        return () => clearTimeout(timeoutId);
+    }, [game]); // Re-run when game state changes
 
     function onDrop(sourceSquare, targetSquare) {
-        const move = makeAMove({
-            from: sourceSquare,
-            to: targetSquare,
-            promotion: 'q' // always promote to queen for simplicity
+        let move = null;
+        safeGameMutate((g) => {
+            try {
+                move = g.move({
+                    from: sourceSquare,
+                    to: targetSquare,
+                    promotion: 'q',
+                });
+            } catch (error) {
+                // Invalid move
+                move = null;
+            }
         });
 
-        if (move === null) return false;
-
-        // Computer Response (Simple Random)
-        setTimeout(() => {
-            // Updated pattern to ensure we use latest state and don't overwrite if game changed
-            setGame((currentGameState) => {
-                const computerGameCopy = new Chess();
-                computerGameCopy.loadPgn(currentGameState.pgn()); // Preserve history
-
-                const computerMoves = computerGameCopy.moves();
-
-                if (!computerGameCopy.isGameOver() && computerMoves.length > 0) {
-                    const randomIndex = Math.floor(Math.random() * computerMoves.length);
-                    computerGameCopy.move(computerMoves[randomIndex]);
-                    return computerGameCopy;
-                }
-                return currentGameState;
-            });
-        }, 300);
-
-        return true;
+        // We need to return true/false synchronously for react-chessboard
+        // to know if the visual drop should theoretically succeed.
+        // We validate against a temporary state to give immediate feedback.
+        try {
+            const tempGame = new Chess();
+            tempGame.loadPgn(game.pgn());
+            const result = tempGame.move({ from: sourceSquare, to: targetSquare, promotion: 'q' });
+            return result !== null;
+        } catch (e) {
+            return false;
+        }
     }
 
-    // Status helpers using the 'game' state object directly
+    // Status helpers
     const currentTurn = game.turn() === 'w' ? 'White' : 'Black';
     const isCheckmate = game.isCheckmate();
     const isDraw = game.isDraw();
